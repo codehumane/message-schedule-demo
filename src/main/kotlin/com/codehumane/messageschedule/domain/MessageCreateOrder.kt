@@ -9,7 +9,7 @@ import javax.persistence.Entity
 class MessageCreateOrder(
 
     @EmbeddedId
-    val id: MessageId,
+    val messageId: MessageId,
     val title: String,
     val contents: String,
     val receiver: String,
@@ -22,14 +22,14 @@ class MessageCreateOrder(
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
         other as MessageCreateOrder
-        return id == other.id
+        return messageId == other.messageId
     }
 
-    override fun hashCode() = id.hashCode()
+    override fun hashCode() = messageId.hashCode()
 
     override fun toString() =
         "MessageCreateOrder(" +
-                "id=$id, " +
+                "id=$messageId, " +
                 "title='$title', " +
                 "contents='$contents', " +
                 "receiver='$receiver', " +

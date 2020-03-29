@@ -7,5 +7,5 @@ import org.springframework.boot.runApplication
 class MessageScheduleApplication
 
 fun main(args: Array<String>) {
-	runApplication<MessageScheduleApplication>(*args)
+    runApplication<MessageScheduleApplication>(*args)
 }
