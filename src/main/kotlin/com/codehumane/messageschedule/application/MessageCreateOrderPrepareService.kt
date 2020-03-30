@@ -5,7 +5,6 @@ import com.codehumane.messageschedule.domain.MessageCreateOrderRepository
 import com.codehumane.messageschedule.domain.MessageId
 import com.codehumane.messageschedule.logger
 import org.springframework.stereotype.Component
-import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDateTime
 
 @Component
@@ -15,7 +14,6 @@ class MessageCreateOrderPrepareService(
 
     private val log by logger()
 
-    @Transactional
     fun prepare() {
         val orders = (1..10).map { toOrder(it) }
         messageCreateOrderRepository.saveAll(orders)
@@ -23,7 +21,7 @@ class MessageCreateOrderPrepareService(
     }
 
     private fun toOrder(it: Int): MessageCreateOrder {
-        val scheduledAt = if (it.rem(2) == 0) LocalDateTime.now().plusNanos(it * 1_000L) else null
+        val scheduledAt = if (it.rem(2) == 0) LocalDateTime.of(2020, 3, 30, 22, 59, it) else null
 
         return MessageCreateOrder(
             MessageId("id$it"),
