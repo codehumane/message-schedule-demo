@@ -1,4 +1,4 @@
-package com.codehumane.messageschedule.application.data
+package com.codehumane.messageschedule.application
 
 import com.codehumane.messageschedule.domain.MessageId
 

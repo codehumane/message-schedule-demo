@@ -1,9 +1,7 @@
 package com.codehumane.messageschedule.config
 
 import com.codehumane.messageschedule.application.MessageCreateOrderPrepareService
-import com.codehumane.messageschedule.application.MessageCreateService
-import com.codehumane.messageschedule.application.converter.MessageCreateOrderConverter
-import com.codehumane.messageschedule.application.data.MessageCreateCommand
+import com.codehumane.messageschedule.application.MessageCreateCommand
 import com.codehumane.messageschedule.domain.MessageCreateOrder
 import com.codehumane.messageschedule.logger
 import com.codehumane.messageschedule.properties.MessageScheduleJobProperties
@@ -18,8 +16,8 @@ import org.springframework.batch.core.listener.JobExecutionListenerSupport
 import org.springframework.batch.core.scope.context.ChunkContext
 import org.springframework.batch.core.step.tasklet.Tasklet
 import org.springframework.batch.item.ItemProcessor
-import org.springframework.batch.item.ItemReader
 import org.springframework.batch.item.ItemWriter
+import org.springframework.batch.item.database.JpaPagingItemReader
 import org.springframework.batch.item.database.builder.JpaPagingItemReaderBuilder
 import org.springframework.batch.repeat.RepeatStatus
 import org.springframework.beans.factory.annotation.Value
@@ -65,9 +63,9 @@ class MessageScheduleJobConfiguration(
     @Bean
     @JobScope
     fun scheduledMessageCreateStep(
-        scheduledMessageCreateOrderItemReader: ItemReader<MessageCreateOrder>,
-        scheduledMessageCreateOrderItemProcessor: ItemProcessor<MessageCreateOrder, MessageCreateCommand>,
-        scheduledMessageCreateOrderItemWriter: ItemWriter<MessageCreateCommand>,
+        scheduledMessageCreateOrderItemReader: JpaPagingItemReader<MessageCreateOrder>,
+        scheduledMessageCreateOrderItemProcessor: ScheduledMessageCreateOrderItemProcessor,
+        scheduledMessageCreateOrderItemWriter: ScheduledMessageCreateOrderItemWriter,
         properties: MessageScheduleJobProperties
     ) = stepBuilderFactory
         .get("scheduledMessageCreateStep")
@@ -114,23 +112,29 @@ class MessageScheduleJobConfiguration(
         )
     }
 
-    @Bean
-    @JobScope
-    fun scheduledMessageCreateOrderItemProcessor(
-        messageCreateOrderConverter: MessageCreateOrderConverter
-    ) = ItemProcessor(messageCreateOrderConverter::convert)
-
-    @Bean
-    @JobScope
-    fun scheduledMessageCreateOrderItemWriter(
-        messageCreateService: MessageCreateService
-    ) = ItemWriter<MessageCreateCommand> { items ->
-        items.forEach { messageCreateService.create(it) }
-        log.info("items written: $items")
+    @Component
+    class ScheduledMessageCreateOrderItemProcessor : ItemProcessor<MessageCreateOrder, MessageCreateCommand> {
+        override fun process(item: MessageCreateOrder) =
+            MessageCreateCommand(
+                item.messageId,
+                item.title,
+                item.contents,
+                item.receiver
+            )
     }
 
     @Component
-    @JobScope
+    class ScheduledMessageCreateOrderItemWriter : ItemWriter<MessageCreateCommand> {
+
+        private val log by logger()
+
+        override fun write(items: MutableList<out MessageCreateCommand>) {
+            items.forEach { log.info("create command: $it") }
+            log.info("items written: $items")
+        }
+    }
+
+    @Component
     class ScheduledMessagePrepareTasklet(
         private val messageCreateOrderPrepareService: MessageCreateOrderPrepareService
     ) : Tasklet {
@@ -144,7 +148,6 @@ class MessageScheduleJobConfiguration(
     }
 
     @Component
-    @JobScope
     class MessageScheduleJobCompletionListener : JobExecutionListenerSupport() {
 
         private val log by logger()
