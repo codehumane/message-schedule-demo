@@ -1,60 +1,28 @@
 package com.codehumane.messageschedule.config
 
-import com.codehumane.messageschedule.application.*
-import com.codehumane.messageschedule.domain.MessageCreateOrder
-import com.codehumane.messageschedule.properties.ScheduledMessageCreateJobProperties
-import org.springframework.batch.core.Step
+import com.codehumane.messageschedule.logger
+import org.springframework.batch.core.Job
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing
-import org.springframework.batch.core.configuration.annotation.JobBuilderFactory
-import org.springframework.batch.core.configuration.annotation.JobScope
-import org.springframework.batch.core.configuration.annotation.StepBuilderFactory
-import org.springframework.batch.core.listener.JobExecutionListenerSupport
-import org.springframework.boot.context.properties.EnableConfigurationProperties
-import org.springframework.context.annotation.Bean
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Configuration
+import javax.annotation.PostConstruct
 
 @Configuration
 @EnableBatchProcessing
-@EnableConfigurationProperties(ScheduledMessageCreateJobProperties::class)
 class JobConfiguration(
-    private val jobBuilderFactory: JobBuilderFactory,
-    private val stepBuilderFactory: StepBuilderFactory
+    @Value("\${spring.batch.job.names:NONE}") private val names: String?,
+    private val jobs: Set<Job>
 ) {
 
-    @Bean
-    fun scheduledMessageCreateJob(
-        scheduledMessagePrepareStep: Step,
-        scheduledMessageCreateStep: Step,
-        messageScheduleJobCompletionListener: JobExecutionListenerSupport
-    ) = jobBuilderFactory
-        .get("scheduledMessageCreateJob")
-        .listener(messageScheduleJobCompletionListener)
-        .start(scheduledMessagePrepareStep)
-        .next(scheduledMessageCreateStep)
-        .build()
+    private val log by logger()
 
-    @Bean
-    @JobScope
-    fun scheduledMessagePrepareStep(
-        scheduledMessagePrepareTasklet: ScheduledMessagePrepareTasklet
-    ) = stepBuilderFactory
-        .get("scheduledMessagePrepareStep")
-        .tasklet(scheduledMessagePrepareTasklet)
-        .build()
+    @PostConstruct
+    fun validateSpringBatchJobNames() {
+        if (names.isNullOrBlank() || names == "NONE" || jobs.isEmpty()) {
+            throw IllegalArgumentException("`spring.batch.job.names`에 지정된 값이 없거나 유효하지 않습니다($names).")
+        }
 
-    @Bean
-    @JobScope
-    fun scheduledMessageCreateStep(
-        scheduledMessageCreateOrderItemReaderBuilder: ScheduledMessageCreateOrderItemReaderBuilder,
-        scheduledMessageCreateOrderItemProcessor: ScheduledMessageCreateOrderItemProcessor,
-        scheduledMessageCreateOrderItemWriter: ScheduledMessageCreateOrderItemWriter,
-        properties: ScheduledMessageCreateJobProperties
-    ) = stepBuilderFactory
-        .get("scheduledMessageCreateStep")
-        .chunk<MessageCreateOrder, MessageCreateCommand>(properties.chunkSize)
-        .reader(scheduledMessageCreateOrderItemReaderBuilder.build())
-        .processor(scheduledMessageCreateOrderItemProcessor)
-        .writer(scheduledMessageCreateOrderItemWriter)
-        .build()
+        log.info("Job($jobs) configuration validated.")
+    }
 
 }
