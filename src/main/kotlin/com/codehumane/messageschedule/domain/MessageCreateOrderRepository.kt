@@ -1,11 +1,18 @@
 package com.codehumane.messageschedule.domain
 
-import org.springframework.data.repository.CrudRepository
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.Pageable
+import org.springframework.data.repository.PagingAndSortingRepository
 import org.springframework.stereotype.Repository
+import java.time.LocalDateTime
 
 @Repository
-interface MessageCreateOrderRepository : CrudRepository<MessageCreateOrder, MessageId> {
+interface MessageCreateOrderRepository : PagingAndSortingRepository<MessageCreateOrder, MessageId> {
 
-    fun findByScheduledAtIsNotNull(): List<MessageCreateOrder>
+    fun findByScheduledAtIsGreaterThanAndScheduledAtIsLessThanEqual(
+        from: LocalDateTime,
+        to: LocalDateTime,
+        pageable: Pageable
+    ): Page<MessageCreateOrder>
 
 }

@@ -1,8 +1,9 @@
 package com.codehumane.messageschedule.config
 
-import com.codehumane.messageschedule.application.MessageCreateOrderPrepareService
 import com.codehumane.messageschedule.application.MessageCreateCommand
+import com.codehumane.messageschedule.application.MessageCreateOrderPrepareService
 import com.codehumane.messageschedule.domain.MessageCreateOrder
+import com.codehumane.messageschedule.domain.MessageCreateOrderRepository
 import com.codehumane.messageschedule.logger
 import com.codehumane.messageschedule.properties.MessageScheduleJobProperties
 import org.springframework.batch.core.JobExecution
@@ -17,13 +18,14 @@ import org.springframework.batch.core.scope.context.ChunkContext
 import org.springframework.batch.core.step.tasklet.Tasklet
 import org.springframework.batch.item.ItemProcessor
 import org.springframework.batch.item.ItemWriter
-import org.springframework.batch.item.database.JpaPagingItemReader
-import org.springframework.batch.item.database.builder.JpaPagingItemReaderBuilder
+import org.springframework.batch.item.data.RepositoryItemReader
+import org.springframework.batch.item.data.builder.RepositoryItemReaderBuilder
 import org.springframework.batch.repeat.RepeatStatus
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Component
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -63,7 +65,7 @@ class MessageScheduleJobConfiguration(
     @Bean
     @JobScope
     fun scheduledMessageCreateStep(
-        scheduledMessageCreateOrderItemReader: JpaPagingItemReader<MessageCreateOrder>,
+        scheduledMessageCreateOrderItemReader: RepositoryItemReader<MessageCreateOrder>,
         scheduledMessageCreateOrderItemProcessor: ScheduledMessageCreateOrderItemProcessor,
         scheduledMessageCreateOrderItemWriter: ScheduledMessageCreateOrderItemWriter,
         properties: MessageScheduleJobProperties
@@ -80,37 +82,35 @@ class MessageScheduleJobConfiguration(
     fun scheduledMessageCreateOrderItemReader(
         entityManagerFactory: EntityManagerFactory,
         properties: MessageScheduleJobProperties,
+        messageCreateOrderRepository: MessageCreateOrderRepository,
         @Value("#{jobParameters[inputDateTime]}") inputDateTime: String?
-    ) = JpaPagingItemReaderBuilder<MessageCreateOrder>()
-        .name("MessageSchedule")
+    ) = RepositoryItemReaderBuilder<MessageCreateOrder>()
+        .name("scheduledMessageCreateOrderItemReader")
+        .repository(messageCreateOrderRepository)
+        .methodName("findByScheduledAtIsGreaterThanAndScheduledAtIsLessThanEqual")
+        .arguments(toScheduledMessageReadParameters(inputDateTime))
+        .sorts(toScheduledMessageCreateOrderItemReadSort())
         .maxItemCount(properties.readerMaxItemCount)
-        .queryString(toScheduledMessageReadQuery())
-        .parameterValues(toScheduledMessageReadParameters(inputDateTime))
         .pageSize(properties.readerFetchSize)
-        .entityManagerFactory(entityManagerFactory)
         .build()
 
-    private fun toScheduledMessageReadQuery() = """
-        select o
-        from MessageCreateOrder o
-        where o.scheduledAt is not null and o.scheduledAt > :from and o.scheduledAt <= :to
-        order by o.orderedAt asc, o.messageId asc
-        """
-        .trimIndent()
-        .replace("\n", " ")
-
-    private fun toScheduledMessageReadParameters(inputDateTime: String?): Map<String, LocalDateTime> {
+    private fun toScheduledMessageReadParameters(inputDateTime: String?): List<LocalDateTime> {
         log.info("scheduled message inputDateTime: $inputDateTime")
 
         val baseDateTime = inputDateTime
             ?.let { LocalDateTime.parse(it, DateTimeFormatter.ofPattern("yyyyMMddHHmmss")) }
             ?: LocalDateTime.now()
 
-        return mapOf(
-            "from" to baseDateTime.minusMinutes(1),
-            "to" to baseDateTime
+        return listOf(
+            baseDateTime.minusMinutes(1),
+            baseDateTime
         )
     }
+
+    private fun toScheduledMessageCreateOrderItemReadSort() = mapOf(
+        "orderedAt" to Sort.Direction.ASC,
+        "messageId" to Sort.Direction.ASC
+    )
 
     @Component
     class ScheduledMessageCreateOrderItemProcessor : ItemProcessor<MessageCreateOrder, MessageCreateCommand> {
